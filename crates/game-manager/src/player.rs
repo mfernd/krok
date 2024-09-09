@@ -2,7 +2,6 @@ use crate::game::Card;
 
 #[derive(Debug, Clone)]
 pub struct Player {
-    id: PlayerIdentifier,
     username: String,
     state: PlayerState,
     color: PlayerColor,
@@ -11,19 +10,14 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(id: PlayerIdentifier, username: &str, color: PlayerColor) -> Self {
+    pub fn new(username: &str, color: PlayerColor) -> Self {
         Self {
-            id,
             username: username.into(),
             state: PlayerState::Alive,
             color,
             cards: Vec::new(),
             remaining_bunnies: 4,
         }
-    }
-
-    pub fn get_id(&self) -> PlayerIdentifier {
-        self.id.clone()
     }
 }
 
@@ -49,4 +43,10 @@ pub enum PlayerColor {
     Red,
     Blue,
     White,
+}
+
+impl Default for PlayerColor {
+    fn default() -> Self {
+        Self::Red
+    }
 }

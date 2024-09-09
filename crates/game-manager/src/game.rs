@@ -1,59 +1,96 @@
 use crate::{
-    board::{Board, BoardLayout},
-    player::Player,
+    board::{Board, BoardError, BoardLayout},
+    player::{self, Player, PlayerIdentifier},
 };
+use std::collections::HashMap;
 
-#[derive(Debug)]
+pub const GAME_ID_LENGTH: usize = 6;
+
+#[derive(Debug, Clone)]
 pub struct Game {
-    id: GameIdentifier,
     state: GameState,
     creator: Creator,
     /// also include the game's creator
-    participants: Vec<Player>,
+    participants: HashMap<PlayerIdentifier, Player>,
     board: Board,
     deck: Deck,
 }
 
 impl Game {
-    pub fn new(id: GameIdentifier, creator: Creator, layout: BoardLayout) -> Self {
+    pub fn init_with_creator(
+        creator_id: PlayerIdentifier,
+        creator: Creator,
+        layout: BoardLayout,
+    ) -> Self {
         let creator_player = creator.0.clone();
-        let creator_id = creator.0.get_id();
 
         Self {
-            id,
             state: GameState::WaitingForPlayer,
             creator,
-            participants: Vec::from([creator_player]),
+            participants: HashMap::from([(creator_id.clone(), creator_player)]),
             board: Board::new_with_first_player(layout, creator_id),
             deck: Deck { cards: Vec::new() },
         }
     }
 
-    pub fn get_id(&self) -> GameIdentifier {
-        self.id.clone()
+    pub fn add_player(
+        &mut self,
+        player_id: PlayerIdentifier,
+        new_player: Player,
+    ) -> Result<(), GameError> {
+        if self.participants.len() == 4 {
+            return Err(GameError::GameIsFull);
+        }
+
+        self.board
+            .add_player_at_the_start(player_id.clone())
+            .map_err(GameError::Board)?;
+
+        self.participants
+            .insert(player_id.clone(), new_player)
+            .ok_or_else(|| {
+                let _ = self.board.remove_player(&player_id);
+
+                GameError::CouldNotAddPlayerInParticipants
+            })?;
+
+        Ok(())
     }
+}
+
+#[derive(Debug)]
+pub enum GameError {
+    GameIsFull,
+    CouldNotAddPlayerInParticipants,
+    Board(BoardError),
+    InvalidGameId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GameIdentifier(String);
 
-impl GameIdentifier {
-    // TODO keep it?
-    pub fn new(id: &str) -> Self {
-        Self(id.into())
+impl TryFrom<String> for GameIdentifier {
+    type Error = GameError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        if GAME_ID_LENGTH < value.len() {
+            return Err(GameError::InvalidGameId);
+        }
+
+        Ok(Self(value))
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum GameState {
     WaitingForPlayer,
-    CanStart,
+    WaitingToStart,
     /// Also contains which player has to play.
     Playing(Player),
     Ended,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Creator(Player);
 
 impl From<Player> for Creator {
@@ -62,7 +99,7 @@ impl From<Player> for Creator {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Deck {
     cards: Vec<Card>,
 }
